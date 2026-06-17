@@ -51,17 +51,17 @@ const AGENT_PROMPTS = {
   lead: "You are the lead research coordinator. Given outputs from 5 analysis agents, synthesize everything into a single unified Evidence Card. Respond ONLY with valid JSON, no markdown: { \"relation_type\": \"reinforcement|contradiction|anchorage|relay|elaboration\", \"salience_notes\": \"\", \"framing_observations\": \"\", \"caption_effect\": \"\", \"combined_interpretation\": \"\", \"audience_positioning\": \"\", \"theory_alignment\": \"strong|moderate|weak\", \"confidence_score\": 0, \"reliability\": \"high|medium|low\", \"flags\": [], \"visual_grammar_score\": 0, \"modality_level\": \"high|mid|low\" }"
 };
 
-async function callAgent(apiKey, systemPrompt, userText, imageBase64, retries = 2) {
+async function callAgent(apiKey, systemPrompt, userText, imageBase64, enableThinking = true, retries = 2) {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      const response = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+      const response = await fetch("/nvidia-api/v1/chat/completions", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${apiKey}`
         },
         body: JSON.stringify({
-          model: "meta/llama-3.2-90b-vision-instruct",
+          model: "google/gemma-4-31b-it",
           messages: [
             { role: "system", content: systemPrompt },
             {
@@ -78,10 +78,11 @@ async function callAgent(apiKey, systemPrompt, userText, imageBase64, retries = 
               ]
             }
           ],
-          max_tokens: 4096,
-          temperature: 0.7,
+          max_tokens: 16384,
+          temperature: 1.00,
           top_p: 0.95,
-          stream: false
+          stream: false,
+          chat_template_kwargs: { enable_thinking: enableThinking }
         })
       });
 
@@ -328,7 +329,7 @@ function Analyze() {
       updateStep(agentId, 'running');
       const startTime = performance.now();
       
-      const res = await callAgent(state.apiKey, prompt, userText, image);
+      const res = await callAgent(state.apiKey, prompt, userText, image, state.enableThinking);
       
       const duration = ((performance.now() - startTime) / 1000).toFixed(1);
       if (res && !res._error) {
@@ -374,7 +375,7 @@ function Analyze() {
     updateStep('lead', 'running');
     const leadContextText = `Agent 1: ${JSON.stringify(out1)}\nAgent 2: ${JSON.stringify(out2)}\nAgent 3: ${JSON.stringify(out3)}\nAgent 4: ${JSON.stringify(out4)}\nAgent 5: ${JSON.stringify(out5)}`;
 
-    const finalData = await callAgent(state.apiKey, AGENT_PROMPTS.lead, leadContextText, image);
+    const finalData = await callAgent(state.apiKey, AGENT_PROMPTS.lead, leadContextText, image, state.enableThinking);
 
     if (finalData && !finalData._error) {
       updateStep('lead', 'done');
@@ -698,7 +699,7 @@ function Settings() {
         {/* API Key */}
         <div className="space-y-2">
           <label className="block text-sm font-medium text-gray-300">NVIDIA NIM API Key</label>
-          <p className="text-xs text-gray-500">Required to use the meta/llama-3.2-90b-vision-instruct model. Stored locally in your browser.</p>
+          <p className="text-xs text-gray-500">Required to use the google/gemma-4-31b-it model. Stored locally in your browser.</p>
           <input
             type="password"
             value={key}
