@@ -23,8 +23,9 @@ const initialState = {
 function appReducer(state, action) {
   switch (action.type) {
     case 'SET_API_KEY':
-      localStorage.setItem('nim_api_key', action.payload);
-      return { ...state, apiKey: action.payload };
+      const cleanKey = action.payload.trim();
+      localStorage.setItem('nim_api_key', cleanKey);
+      return { ...state, apiKey: cleanKey };
     case 'SET_THINKING':
       localStorage.setItem('enable_thinking', action.payload ? 'true' : 'false');
       return { ...state, enableThinking: action.payload };
@@ -58,7 +59,7 @@ async function callAgent(apiKey, systemPrompt, userText, imageBase64, enableThin
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${apiKey}`
+          "Authorization": `Bearer ${apiKey.trim()}`
         },
         body: JSON.stringify({
           model: "meta/llama-3.2-11b-vision-instruct",
