@@ -54,7 +54,7 @@ const AGENT_PROMPTS = {
 async function callAgent(apiKey, systemPrompt, userText, imageBase64, enableThinking = true, retries = 2) {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      const response = await fetch("/nvidia-api/v1/chat/completions", {
+      const response = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
