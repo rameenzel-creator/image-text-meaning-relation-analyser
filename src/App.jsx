@@ -14,7 +14,7 @@ import {
 const AppContext = createContext();
 
 const initialState = {
-  apiKey: localStorage.getItem('groq_api_key') || '',
+  apiKey: import.meta.env.VITE_GROQ_API_KEY || '',
   enableThinking: localStorage.getItem('enable_thinking') !== 'false',
   pipelineMode: localStorage.getItem('pipeline_mode') || 'parallel', // 'parallel' or 'sequential'
   evidences: JSON.parse(localStorage.getItem('evidences')) || []
@@ -23,9 +23,7 @@ const initialState = {
 function appReducer(state, action) {
   switch (action.type) {
     case 'SET_API_KEY':
-      const cleanKey = action.payload.trim();
-      localStorage.setItem('groq_api_key', cleanKey);
-      return { ...state, apiKey: cleanKey };
+      return { ...state, apiKey: action.payload };
     case 'SET_THINKING':
       localStorage.setItem('enable_thinking', action.payload ? 'true' : 'false');
       return { ...state, enableThinking: action.payload };
@@ -721,21 +719,6 @@ function Settings() {
       <h2 className="text-2xl font-bold text-gray-100">Settings</h2>
 
       <div className="bg-card p-6 rounded-xl border border-gray-800 space-y-6">
-        {/* API Key */}
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-300">Groq API Key</label>
-          <p className="text-xs text-gray-500">Get a free key from <a href="https://console.groq.com" target="_blank" className="text-accent underline">console.groq.com</a>. Stored locally in your browser.</p>
-          <input
-            type="password"
-            value={key}
-            onChange={(e) => setKey(e.target.value)}
-            className="w-full bg-background border border-gray-700 rounded-lg p-3 text-gray-100 focus:outline-none focus:border-accent font-mono"
-            placeholder="nvapi-..."
-          />
-        </div>
-
-        <div className="border-t border-gray-800"></div>
-
         {/* Thinking Mode */}
         <div className="space-y-2">
           <div className="flex items-start gap-3">
