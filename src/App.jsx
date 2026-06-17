@@ -61,7 +61,7 @@ async function callAgent(apiKey, systemPrompt, userText, imageBase64, enableThin
           "Authorization": `Bearer ${apiKey}`
         },
         body: JSON.stringify({
-          model: "google/gemma-4-31b-it",
+          model: "meta/llama-3.2-11b-vision-instruct",
           messages: [
             { role: "system", content: systemPrompt },
             {
@@ -78,11 +78,10 @@ async function callAgent(apiKey, systemPrompt, userText, imageBase64, enableThin
               ]
             }
           ],
-          max_tokens: 16384,
-          temperature: 1.00,
+          max_tokens: 4096,
+          temperature: 0.7,
           top_p: 0.95,
-          stream: false,
-          chat_template_kwargs: { enable_thinking: enableThinking }
+          stream: false
         })
       });
 
@@ -699,7 +698,7 @@ function Settings() {
         {/* API Key */}
         <div className="space-y-2">
           <label className="block text-sm font-medium text-gray-300">NVIDIA NIM API Key</label>
-          <p className="text-xs text-gray-500">Required to use the google/gemma-4-31b-it model. Stored locally in your browser.</p>
+          <p className="text-xs text-gray-500">Required to use the meta/llama-3.2-11b-vision-instruct model. Stored locally in your browser.</p>
           <input
             type="password"
             value={key}
