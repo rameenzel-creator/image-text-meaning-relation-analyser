@@ -51,7 +51,7 @@ const AGENT_PROMPTS = {
   lead: "You are the lead research coordinator. Given outputs from 5 analysis agents, synthesize everything into a single unified Evidence Card. Respond ONLY with valid JSON, no markdown: { \"relation_type\": \"reinforcement|contradiction|anchorage|relay|elaboration\", \"salience_notes\": \"\", \"framing_observations\": \"\", \"caption_effect\": \"\", \"combined_interpretation\": \"\", \"audience_positioning\": \"\", \"theory_alignment\": \"strong|moderate|weak\", \"confidence_score\": 0, \"reliability\": \"high|medium|low\", \"flags\": [], \"visual_grammar_score\": 0, \"modality_level\": \"high|mid|low\" }"
 };
 
-async function callAgent(apiKey, systemPrompt, userText, imageBase64, enableThinking = true, retries = 2) {
+async function callAgent(apiKey, systemPrompt, userText, imageBase64, retries = 2) {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       const response = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
@@ -61,7 +61,7 @@ async function callAgent(apiKey, systemPrompt, userText, imageBase64, enableThin
           "Authorization": `Bearer ${apiKey}`
         },
         body: JSON.stringify({
-          model: "google/gemma-4-31b-it",
+          model: "meta/llama-3.2-90b-vision-instruct",
           messages: [
             { role: "system", content: systemPrompt },
             {
@@ -69,7 +69,7 @@ async function callAgent(apiKey, systemPrompt, userText, imageBase64, enableThin
               content: [
                 {
                   type: "image_url",
-                  image_url: { url: imageBase64 } // assuming base64 includes data:image/... prefix
+                  image_url: { url: imageBase64 }
                 },
                 {
                   type: "text",
@@ -78,23 +78,22 @@ async function callAgent(apiKey, systemPrompt, userText, imageBase64, enableThin
               ]
             }
           ],
-          max_tokens: 16384,
-          temperature: 1.00,
+          max_tokens: 4096,
+          temperature: 0.7,
           top_p: 0.95,
-          stream: false,
-          chat_template_kwargs: { enable_thinking: enableThinking }
+          stream: false
         })
       });
 
       if (response.status === 429) {
         console.warn(`[API Rate Limit] Request throttled (429). Retry attempt ${attempt + 1}/${retries}...`);
-        await new Promise(resolve => setTimeout(resolve, (attempt + 1) * 2000));
+        await new Promise(resolve => setTimeout(resolve, (attempt + 1) * 3000));
         continue;
       }
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`HTTP ${response.status} ${response.statusText}: ${errorText}`);
+        throw new Error(`HTTP ${response.status}: ${errorText.substring(0, 200)}`);
       }
 
       const responseText = await response.text();
@@ -102,31 +101,34 @@ async function callAgent(apiKey, systemPrompt, userText, imageBase64, enableThin
       try {
         data = JSON.parse(responseText);
       } catch (e) {
-        console.error("Failed to parse API response as JSON. Raw response text:", responseText);
-        throw new Error(`Malformed JSON response from API: ${responseText.substring(0, 300)}`);
+        throw new Error(`Malformed JSON response from API: ${responseText.substring(0, 200)}`);
       }
 
       if (data.error) throw new Error(data.error.message || "API Error");
       
       const text = data.choices[0]?.message?.content;
-      if (!text) {
-        throw new Error("API response does not contain message content");
-      }
+      if (!text) throw new Error("API response does not contain message content");
 
-      const clean = text.replace(/```json|```/g, "").trim();
+      // Extract JSON from the response (handle markdown code blocks)
+      const jsonMatch = text.match(/```json\s*([\s\S]*?)```/) || text.match(/({[\s\S]*})/);
+      const clean = jsonMatch ? jsonMatch[1] || jsonMatch[0] : text.trim();
       try {
         return JSON.parse(clean);
       } catch (e) {
-        console.error("Failed to parse agent JSON output. Raw content:", text);
-        throw new Error("Agent output is not valid JSON");
+        // Try to extract any JSON object from the text
+        const objMatch = text.match(/{[\s\S]*}/);
+        if (objMatch) {
+          try { return JSON.parse(objMatch[0]); } catch (_) {}
+        }
+        throw new Error("Agent output is not valid JSON: " + text.substring(0, 100));
       }
     } catch (error) {
       if (attempt === retries) {
-        console.error("Agent execution failed after retries:", error);
-        return null;
+        console.error(`Agent failed after ${retries + 1} attempts:`, error.message);
+        return { _error: error.message };
       }
-      console.warn(`[API Retry] Attempt ${attempt + 1} failed. Retrying in 1s...`, error);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      console.warn(`[API Retry] Attempt ${attempt + 1} failed: ${error.message}. Retrying...`);
+      await new Promise(resolve => setTimeout(resolve, 2000));
     }
   }
 }
@@ -247,13 +249,14 @@ function Analyze() {
   const [caption, setCaption] = useState('');
   const [context, setContext] = useState('');
   const [status, setStatus] = useState('idle'); // idle, running, done, error
+  const [errorMsg, setErrorMsg] = useState('');
   const [steps, setSteps] = useState([
-    { id: 'agent1', label: 'Evidence Agent', status: 'pending' },
-    { id: 'agent2', label: 'Caption Agent', status: 'pending' },
-    { id: 'agent3', label: 'Visual Grammar Agent', status: 'pending' },
-    { id: 'agent4', label: 'Discourse Agent', status: 'pending' },
-    { id: 'agent5', label: 'Review Agent', status: 'pending' },
-    { id: 'lead', label: 'Synthesis Agent', status: 'pending' },
+    { id: 'agent1', label: 'Evidence Agent', status: 'pending', error: '' },
+    { id: 'agent2', label: 'Caption Agent', status: 'pending', error: '' },
+    { id: 'agent3', label: 'Visual Grammar Agent', status: 'pending', error: '' },
+    { id: 'agent4', label: 'Discourse Agent', status: 'pending', error: '' },
+    { id: 'agent5', label: 'Review Agent', status: 'pending', error: '' },
+    { id: 'lead', label: 'Synthesis Agent', status: 'pending', error: '' },
   ]);
   const [result, setResult] = useState(null);
 
@@ -299,8 +302,8 @@ function Analyze() {
     }
   };
 
-  const updateStep = (id, newStatus) => {
-    setSteps(prev => prev.map(s => s.id === id ? { ...s, status: newStatus } : s));
+  const updateStep = (id, newStatus, errMsg = '') => {
+    setSteps(prev => prev.map(s => s.id === id ? { ...s, status: newStatus, error: errMsg } : s));
   };
 
   const runAnalysis = async () => {
@@ -314,27 +317,28 @@ function Analyze() {
     }
 
     setStatus('running');
+    setErrorMsg('');
     setResult(null);
-    setSteps(steps.map(s => ({ ...s, status: 'pending' })));
+    setSteps(steps.map(s => ({ ...s, status: 'pending', error: '' })));
 
     const userText = `Caption: ${caption}\nContext: ${context}`;
     let agentOutputs = {};
 
     const runAgentWithFallback = async (agentId, prompt, fallbackObj) => {
       updateStep(agentId, 'running');
-      console.log(`[${agentId}] Started analysis...`);
       const startTime = performance.now();
       
-      const res = await callAgent(state.apiKey, prompt, userText, image, state.enableThinking);
+      const res = await callAgent(state.apiKey, prompt, userText, image);
       
       const duration = ((performance.now() - startTime) / 1000).toFixed(1);
-      if (res) {
-        console.log(`[${agentId}] Finished successfully in ${duration}s. Result:`, res);
+      if (res && !res._error) {
         updateStep(agentId, 'done');
         return res;
       } else {
-        console.warn(`[${agentId}] Failed after ${duration}s. Using fallback.`);
-        updateStep(agentId, 'error');
+        const errMsg = res?._error || 'Unknown error';
+        console.warn(`[${agentId}] Failed after ${duration}s:`, errMsg);
+        updateStep(agentId, 'error', errMsg);
+        if (!errorMsg) setErrorMsg(errMsg);
         return fallbackObj;
       }
     };
@@ -370,9 +374,9 @@ function Analyze() {
     updateStep('lead', 'running');
     const leadContextText = `Agent 1: ${JSON.stringify(out1)}\nAgent 2: ${JSON.stringify(out2)}\nAgent 3: ${JSON.stringify(out3)}\nAgent 4: ${JSON.stringify(out4)}\nAgent 5: ${JSON.stringify(out5)}`;
 
-    const finalData = await callAgent(state.apiKey, AGENT_PROMPTS.lead, leadContextText, image, state.enableThinking);
+    const finalData = await callAgent(state.apiKey, AGENT_PROMPTS.lead, leadContextText, image);
 
-    if (finalData) {
+    if (finalData && !finalData._error) {
       updateStep('lead', 'done');
       const evidenceCard = {
         id: crypto.randomUUID(),
@@ -385,7 +389,9 @@ function Analyze() {
       setResult(evidenceCard);
       setStatus('done');
     } else {
-      updateStep('lead', 'error');
+      const errMsg = finalData?._error || 'Synthesis agent failed';
+      updateStep('lead', 'error', errMsg);
+      setErrorMsg(errMsg);
       setStatus('error');
     }
   };
@@ -452,19 +458,32 @@ function Analyze() {
         <div className="bg-card p-6 rounded-xl border border-gray-800">
           <h3 className="text-lg font-medium mb-4">Pipeline Status</h3>
           <div className="space-y-4">
-            {steps.map((step, idx) => (
-              <div key={step.id} className="flex items-center gap-3">
-                {step.status === 'pending' && <div className="w-5 h-5 rounded-full border-2 border-gray-600" />}
-                {step.status === 'running' && <Loader2 className="w-5 h-5 text-accent animate-spin" />}
-                {step.status === 'done' && <CheckCircle2 className="w-5 h-5 text-green-500" />}
-                {step.status === 'error' && <XCircle className="w-5 h-5 text-red-500" />}
-                <span className={`text-sm ${step.status === 'pending' ? 'text-gray-500' : 'text-gray-200'}`}>
-                  {step.label}
-                </span>
+            {steps.map((step) => (
+              <div key={step.id}>
+                <div className="flex items-center gap-3">
+                  {step.status === 'pending' && <div className="w-5 h-5 rounded-full border-2 border-gray-600" />}
+                  {step.status === 'running' && <Loader2 className="w-5 h-5 text-accent animate-spin" />}
+                  {step.status === 'done' && <CheckCircle2 className="w-5 h-5 text-green-500" />}
+                  {step.status === 'error' && <XCircle className="w-5 h-5 text-red-500" />}
+                  <span className={`text-sm ${step.status === 'pending' ? 'text-gray-500' : step.status === 'error' ? 'text-red-400' : 'text-gray-200'}`}>
+                    {step.label}
+                  </span>
+                </div>
+                {step.error && (
+                  <p className="text-xs text-red-400 mt-1 ml-8 bg-red-500/10 px-2 py-1 rounded">{step.error}</p>
+                )}
               </div>
             ))}
           </div>
         </div>
+        {errorMsg && status === 'error' && (
+          <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4">
+            <h4 className="text-sm font-semibold text-red-400 mb-1 flex items-center gap-2"><XCircle className="w-4 h-4" /> Analysis Failed</h4>
+            <p className="text-xs text-red-300">{errorMsg}</p>
+            {errorMsg.includes('401') && <p className="text-xs text-yellow-400 mt-2">⚠️ Check your API key in Settings.</p>}
+            {errorMsg.includes('CORS') && <p className="text-xs text-yellow-400 mt-2">⚠️ CORS error — try a different browser or network.</p>}
+          </div>
+        )}
 
         {result && (
           <div className="bg-card p-6 rounded-xl border border-accent border-opacity-50 shadow-[0_0_15px_rgba(124,106,247,0.1)]">
@@ -679,7 +698,7 @@ function Settings() {
         {/* API Key */}
         <div className="space-y-2">
           <label className="block text-sm font-medium text-gray-300">NVIDIA NIM API Key</label>
-          <p className="text-xs text-gray-500">Required to use the google/gemma-4-31b-it model. Stored locally in your browser.</p>
+          <p className="text-xs text-gray-500">Required to use the meta/llama-3.2-90b-vision-instruct model. Stored locally in your browser.</p>
           <input
             type="password"
             value={key}
