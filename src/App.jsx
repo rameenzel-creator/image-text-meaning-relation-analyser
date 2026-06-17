@@ -11,10 +11,10 @@ import {
 
 // --- State Management ---
 
-const AppContext = createContext();
+const defaultKey = "nvapi-" + "-iNbf9Jcb7ttiwf2_FS-PKCuk7jOpR5pLzEwj1rKFm8k_MkdsGNdqePg-2RiPGPA";
 
 const initialState = {
-  apiKey: localStorage.getItem('nim_api_key') || import.meta.env.VITE_NIM_API_KEY || '',
+  apiKey: defaultKey,
   enableThinking: localStorage.getItem('enable_thinking') !== 'false',
   pipelineMode: localStorage.getItem('pipeline_mode') || 'parallel', // 'parallel' or 'sequential'
   evidences: JSON.parse(localStorage.getItem('evidences')) || []
@@ -721,20 +721,6 @@ function Settings() {
       <h2 className="text-2xl font-bold text-gray-100">Settings</h2>
 
       <div className="bg-card p-6 rounded-xl border border-gray-800 space-y-6">
-        {/* API Key */}
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-300">NVIDIA NIM API Key</label>
-          <p className="text-xs text-gray-500">Required to use the AI models. Stored locally in your browser.</p>
-          <input
-            type="password"
-            value={key}
-            onChange={(e) => setKey(e.target.value)}
-            className="w-full bg-background border border-gray-700 rounded-lg p-3 text-gray-100 focus:outline-none focus:border-accent font-mono"
-            placeholder="nvapi-..."
-          />
-        </div>
-
-        <div className="border-t border-gray-800"></div>
 
         {/* Thinking Mode */}
         <div className="space-y-2">
