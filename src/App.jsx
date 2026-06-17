@@ -632,7 +632,19 @@ function Charts() {
 
 function ReviewPanel() {
   const { state } = useContext(AppContext);
-  const flagged = state.evidences.filter(ev => ev.reliability !== 'high' || ev.flags?.length > 0);
+
+  // Safely normalise a flag — it might be a string or a {type, detail} object
+  const normaliseFlag = (flag) => {
+    if (!flag) return null;
+    if (typeof flag === 'string') return { type: 'note', detail: flag };
+    if (typeof flag === 'object' && (flag.type || flag.detail)) return flag;
+    return null;
+  };
+
+  const flagged = state.evidences.filter(ev => {
+    const flags = Array.isArray(ev.flags) ? ev.flags : [];
+    return ev.reliability !== 'high' || flags.length > 0;
+  });
 
   return (
     <div className="space-y-6">
@@ -640,42 +652,52 @@ function ReviewPanel() {
       <p className="text-gray-400">Items flagged by the Review Agent for low reliability or weak evidence.</p>
 
       <div className="space-y-4">
-        {flagged.map(ev => (
-          <div key={ev.id} className="bg-card border border-red-500/20 p-5 rounded-xl flex gap-6">
-            <img src={ev.image_base64} alt="thumb" className="w-24 h-24 object-cover rounded shadow" />
-            <div className="flex-1 space-y-3">
-              <div className="flex items-start justify-between">
-                <div>
-                  <h4 className="font-medium text-gray-200">Relation: <span className="capitalize text-accent">{ev.relation_type}</span></h4>
-                  <p className="text-sm text-gray-500 mt-1">Score: {ev.confidence_score}% | Reliability: <span className="text-red-400 capitalize">{ev.reliability}</span></p>
+        {flagged.map(ev => {
+          const flags = (Array.isArray(ev.flags) ? ev.flags : [])
+            .map(normaliseFlag)
+            .filter(Boolean);
+
+          return (
+            <div key={ev.id} className="bg-card border border-red-500/20 p-5 rounded-xl flex gap-6">
+              <img src={ev.image_base64} alt="thumb" className="w-24 h-24 object-cover rounded shadow" />
+              <div className="flex-1 space-y-3">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h4 className="font-medium text-gray-200">Relation: <span className="capitalize text-accent">{ev.relation_type}</span></h4>
+                    <p className="text-sm text-gray-500 mt-1">Score: {ev.confidence_score}% | Reliability: <span className="text-red-400 capitalize">{ev.reliability}</span></p>
+                  </div>
                 </div>
-              </div>
-              {ev.flags && ev.flags.length > 0 && (
-                <div className="space-y-2 mt-2">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-red-400">Flags</span>
-                  {ev.flags.map((flag, idx) => (
-                    <div key={idx} className="bg-red-500/10 text-red-300 px-3 py-2 rounded text-sm border border-red-500/20 flex gap-2 items-start">
-                      <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-                      <div>
-                        <strong>{flag.type.replace('_', ' ')}:</strong> {flag.detail}
+                {flags.length > 0 && (
+                  <div className="space-y-2 mt-2">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-red-400">Flags</span>
+                    {flags.map((flag, idx) => (
+                      <div key={idx} className="bg-red-500/10 text-red-300 px-3 py-2 rounded text-sm border border-red-500/20 flex gap-2 items-start">
+                        <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                        <div>
+                          <strong>{(flag.type || 'note').replace(/_/g, ' ')}:</strong> {flag.detail || ''}
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
         {flagged.length === 0 && (
           <div className="bg-card p-8 rounded-xl border border-gray-800 text-center text-green-500 flex flex-col items-center gap-3">
             <CheckCircle2 className="w-10 h-10" />
             <p className="font-medium">All clear! No items require review.</p>
+            {state.evidences.length === 0 && (
+              <p className="text-xs text-gray-500 mt-1">Run an analysis first to generate evidence cards.</p>
+            )}
           </div>
         )}
       </div>
     </div>
   );
 }
+
 
 function Settings() {
   const { state, dispatch } = useContext(AppContext);
