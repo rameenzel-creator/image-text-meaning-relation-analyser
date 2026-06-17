@@ -14,7 +14,7 @@ import {
 const AppContext = createContext();
 
 const initialState = {
-  apiKey: localStorage.getItem('nim_api_key') || '',
+  apiKey: localStorage.getItem('groq_api_key') || '',
   enableThinking: localStorage.getItem('enable_thinking') !== 'false',
   pipelineMode: localStorage.getItem('pipeline_mode') || 'parallel', // 'parallel' or 'sequential'
   evidences: JSON.parse(localStorage.getItem('evidences')) || []
@@ -24,7 +24,7 @@ function appReducer(state, action) {
   switch (action.type) {
     case 'SET_API_KEY':
       const cleanKey = action.payload.trim();
-      localStorage.setItem('nim_api_key', cleanKey);
+      localStorage.setItem('groq_api_key', cleanKey);
       return { ...state, apiKey: cleanKey };
     case 'SET_THINKING':
       localStorage.setItem('enable_thinking', action.payload ? 'true' : 'false');
