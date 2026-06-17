@@ -14,7 +14,7 @@ import {
 const AppContext = createContext();
 
 const initialState = {
-  apiKey: import.meta.env.VITE_NIM_API_KEY || '',
+  apiKey: localStorage.getItem('nim_api_key') || import.meta.env.VITE_NIM_API_KEY || '',
   enableThinking: localStorage.getItem('enable_thinking') !== 'false',
   pipelineMode: localStorage.getItem('pipeline_mode') || 'parallel', // 'parallel' or 'sequential'
   evidences: JSON.parse(localStorage.getItem('evidences')) || []
@@ -23,6 +23,7 @@ const initialState = {
 function appReducer(state, action) {
   switch (action.type) {
     case 'SET_API_KEY':
+      localStorage.setItem('nim_api_key', action.payload);
       return { ...state, apiKey: action.payload };
     case 'SET_THINKING':
       localStorage.setItem('enable_thinking', action.payload ? 'true' : 'false');
@@ -701,11 +702,13 @@ function ReviewPanel() {
 
 function Settings() {
   const { state, dispatch } = useContext(AppContext);
+  const [key, setKey] = useState(state.apiKey);
   const [thinking, setThinking] = useState(state.enableThinking);
   const [mode, setMode] = useState(state.pipelineMode);
   const [saved, setSaved] = useState(false);
 
   const handleSave = () => {
+    dispatch({ type: 'SET_API_KEY', payload: key });
     dispatch({ type: 'SET_THINKING', payload: thinking });
     dispatch({ type: 'SET_PIPELINE_MODE', payload: mode });
     setSaved(true);
@@ -717,6 +720,20 @@ function Settings() {
       <h2 className="text-2xl font-bold text-gray-100">Settings</h2>
 
       <div className="bg-card p-6 rounded-xl border border-gray-800 space-y-6">
+        {/* API Key */}
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-gray-300">NVIDIA NIM API Key</label>
+          <p className="text-xs text-gray-500">Required to use the AI models. Stored locally in your browser.</p>
+          <input
+            type="password"
+            value={key}
+            onChange={(e) => setKey(e.target.value)}
+            className="w-full bg-background border border-gray-700 rounded-lg p-3 text-gray-100 focus:outline-none focus:border-accent font-mono"
+            placeholder="nvapi-..."
+          />
+        </div>
+
+        <div className="border-t border-gray-800"></div>
 
         {/* Thinking Mode */}
         <div className="space-y-2">
