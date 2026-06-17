@@ -3,10 +3,5 @@
     {
       "source": "/nvidia-api/(.*)",
       "destination": "https://integrate.api.nvidia.com/$1"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
   ]
 }
