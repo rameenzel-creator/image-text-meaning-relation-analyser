@@ -377,6 +377,11 @@ function Analyze() {
 
     if (finalData && !finalData._error) {
       updateStep('lead', 'done');
+      const rawScore = finalData?.confidence_score ?? 0;
+      const normalizedScore = rawScore <= 1
+        ? Math.round(rawScore * 100)
+        : Math.round(rawScore);
+
       const evidenceCard = {
         id: crypto.randomUUID(),
         timestamp: new Date().toISOString(),
@@ -384,6 +389,7 @@ function Analyze() {
         caption,
         context,
         ...finalData,
+        confidence_score: normalizedScore,
         // Guarantee that the Review Agent's detailed output isn't summarized away by the Lead agent
         flags: out5?.flags || finalData.flags || [],
         reliability: out5?.overall_reliability || finalData.reliability || 'high'
