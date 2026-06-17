@@ -2,8 +2,8 @@
   "cleanUrls": true,
   "rewrites": [
     {
-      "source": "/nvidia-api/(.*)",
-      "destination": "https://integrate.api.nvidia.com/$1"
+      "source": "/groq-api/(.*)",
+      "destination": "https://api.groq.com/$1"
     },
     {
       "source": "/(.*)",

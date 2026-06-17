@@ -55,14 +55,14 @@ const AGENT_PROMPTS = {
 async function callAgent(apiKey, systemPrompt, userText, imageBase64, enableThinking = true, retries = 2) {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      const response = await fetch("/nvidia-api/v1/chat/completions", {
+      const response = await fetch("/groq-api/openai/v1/chat/completions", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${apiKey.trim()}`
         },
         body: JSON.stringify({
-          model: "meta/llama-3.2-11b-vision-instruct",
+          model: "meta-llama/llama-4-scout-17b-16e-instruct",
           messages: [
             { role: "system", content: systemPrompt },
             {
@@ -723,8 +723,8 @@ function Settings() {
       <div className="bg-card p-6 rounded-xl border border-gray-800 space-y-6">
         {/* API Key */}
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-300">NVIDIA NIM API Key</label>
-          <p className="text-xs text-gray-500">Paste your newly generated API key here.</p>
+          <label className="block text-sm font-medium text-gray-300">Groq API Key</label>
+          <p className="text-xs text-gray-500">Get a free key from <a href="https://console.groq.com" target="_blank" className="text-accent underline">console.groq.com</a>. Stored locally in your browser.</p>
           <input
             type="password"
             value={key}
